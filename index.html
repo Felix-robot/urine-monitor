@@ -271,35 +271,41 @@
         }
 
         async function connectBluetooth() {
+            // 1. 检查是否支持蓝牙
             if (!navigator.bluetooth) {
-                showToast("当前浏览器不支持 Web Bluetooth，请使用 Chrome 或 Edge");
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                if (isIOS) {
+                    showToast("请使用 Bluefy 浏览器打开此页面");
+                } else {
+                    showToast("当前浏览器不支持蓝牙，请更换 Chrome/Edge");
+                }
                 return;
             }
 
             try {
                 updateStatus('connecting', '搜索中...');
                 
-                // 1. 搜索设备
-                // 策略：搜索名为"尿流率检测仪"的设备。
-                // 注意：如果你的 ESP32 用的是标准串口UUID（如 Nordic UART），建议加入 optionalServices
+                // 弹出调试信息，确认代码运行到了这里
+                console.log("开始请求设备...");
+
+                // 2. 请求设备
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: '尿流率检测仪' }],
-                    // 添加通用的串口服务UUID，以防设备未广播特定UUID导致访问受限
+                    filters: [{ name: '尿流率检测仪' }], 
                     optionalServices: [
-                        '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service
-                        0xFFE0 // 常见的透传服务
+                        '4fafc201-1fb5-459e-8fcc-c5c9c331914b', // 你的服务UUID
+                        0xFFE0 // 备用透传
                     ]
                 });
 
+                console.log("设备已选择:", device.name);
                 bluetoothDevice = device;
                 device.addEventListener('gattserverdisconnected', onDisconnected);
 
-                // 2. 连接服务器
+                // 3. 连接服务器
                 updateStatus('connecting', '连接中...');
                 const server = await device.gatt.connect();
 
-                // 3. 获取服务与特征值
-                // 这里使用自动遍历策略，寻找第一个支持 Notify 的特征值
+                // 4. 获取服务与特征值
                 let characteristic = null;
                 const services = await server.getPrimaryServices();
                 
@@ -315,25 +321,40 @@
                 }
 
                 if (!characteristic) {
-                    throw new Error("未找到可读数据通道，请检查ESP32代码");
+                    throw new Error("未找到可读数据通道");
                 }
 
-                // 4. 开启通知
+                // 5. 开启通知
                 await characteristic.startNotifications();
                 characteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
                 
                 updateStatus('connected', '正在接收');
-                requestWakeLock(); // 保持屏幕常亮
-                showToast("连接成功！开始记录数据");
+                requestWakeLock();
+                showToast("连接成功！");
 
-                // 更新按钮文本
                 document.getElementById('btnConnect').textContent = "断开连接";
                 document.getElementById('btnConnect').style.backgroundColor = "#e74c3c";
 
             } catch (error) {
                 console.error(error);
                 updateStatus('disconnected', '未连接');
-                showToast("连接失败: " + error.message);
+                
+                // --- 关键修改：兼容 Bluefy 的错误显示 ---
+                let errorMsg = "未知错误";
+                if (typeof error === 'string') {
+                    errorMsg = error;
+                } else if (error.message) {
+                    errorMsg = error.message;
+                } else {
+                    errorMsg = JSON.stringify(error);
+                }
+                
+                // 如果是用户取消（User cancelled），不用弹窗报错，体验更好
+                if (errorMsg.includes("User cancelled") || errorMsg.includes("cancelled")) {
+                     showToast("已取消连接");
+                } else {
+                     alert("连接错误详情:\n" + errorMsg); // 用 alert 弹窗显示完整错误
+                }
             }
         }
 
