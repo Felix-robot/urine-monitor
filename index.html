@@ -288,14 +288,17 @@
                 // 弹出调试信息，确认代码运行到了这里
                 console.log("开始请求设备...");
 
-                // 2. 请求设备
+                // === 修改开始：改为扫描所有设备 ===
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: '尿流率检测仪' }], 
+                    // 1. 放弃 filters，改为接受所有设备 (解决中文筛选和参数报错问题)
+                    acceptAllDevices: true, 
+                    
+                    // 2. 这里的服务 UUID 必须全是字符串，去掉那个 0xFFE0 数字
                     optionalServices: [
-                        '4fafc201-1fb5-459e-8fcc-c5c9c331914b', // 你的服务UUID
-                        0xFFE0 // 备用透传
+                        '4fafc201-1fb5-459e-8fcc-c5c9c331914b'
                     ]
                 });
+                // === 修改结束 ===
 
                 console.log("设备已选择:", device.name);
                 bluetoothDevice = device;
@@ -605,3 +608,4 @@
     </script>
 </body>
 </html>
+
