@@ -3,609 +3,383 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>尿流率实时监测</title>
+    <title>尿流率监测系统</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; padding-bottom: 120px; margin: 0; color: #333; }
         
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
-            padding-bottom: 80px; /* 为底部按钮留空间 */
-            color: #333;
-        }
-
-        /* 顶部状态栏 - 移动端优化 */
-        .status-bar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: white;
-            padding: 10px 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .bt-status {
-            display: flex;
-            align-items: center;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ccc;
-            margin-right: 8px;
-            transition: background 0.3s;
-        }
-        .indicator.connected { background: #27ae60; box-shadow: 0 0 5px #27ae60; }
-        .indicator.connecting { background: #f1c40f; }
-
-        .realtime-val {
-            font-family: monospace;
-            font-size: 16px;
-            color: #2c3e50;
-        }
-
-        .container {
-            padding: 15px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        /* 卡片样式优化 */
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        /* 手动输入区折叠 */
-        details {
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 10px;
-            background: #fff;
-            margin-bottom: 15px;
-        }
-        summary {
-            font-weight: 500;
-            color: #666;
-            cursor: pointer;
-            outline: none;
-        }
+        /* 顶部栏 */
+        .header { background: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        .status-box { display: flex; align-items: center; font-size: 14px; font-weight: 500; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; margin-right: 8px; transition: 0.3s; }
+        .dot.connected { background: #f1c40f; } /* 连接但未开始 */
+        .dot.recording { background: #e74c3c; animation: pulse 1s infinite; } /* 录制中 */
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-top: 10px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-family: monospace;
-        }
+        .live-value { font-family: 'Courier New', monospace; font-weight: bold; font-size: 18px; color: #2c3e50; }
 
-        /* 统计网格 */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
+        /* 卡片布局 */
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
         
-        .stat-item {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-        }
+        /* 数据网格 */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stat-item { text-align: center; background: #f8f9fa; padding: 15px; border-radius: 12px; }
+        .stat-label { font-size: 12px; color: #888; margin-bottom: 5px; }
+        .stat-val { font-size: 22px; font-weight: 700; color: #2c3e50; }
         
-        .stat-val {
-            font-size: 20px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin: 4px 0;
-        }
+        /* 图表标题 */
+        .chart-header { display: flex; justify-content: space-between; margin-bottom: 10px; border-left: 4px solid #3498db; padding-left: 10px; }
+        .chart-title { font-weight: 600; font-size: 15px; }
+        canvas { width: 100%; height: 200px; display: block; }
+
+        /* 底部控制栏 */
+        .control-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px 20px; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); display: flex; gap: 12px; z-index: 200; }
+        .btn { flex: 1; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s; color: white; display: flex; justify-content: center; align-items: center; }
+        .btn:active { transform: scale(0.98); }
         
-        .stat-label {
-            font-size: 12px;
-            color: #7f8c8d;
-        }
-
-        /* 图表容器 */
-        .chart-container {
-            position: relative;
-            height: 220px;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        h3 { font-size: 16px; color: #2c3e50; margin-bottom: 10px; border-left: 4px solid #3498db; padding-left: 10px; }
-
-        /* 底部浮动操作栏 */
-        .bottom-actions {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            padding: 12px 15px;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-            display: flex;
-            gap: 10px;
-            z-index: 999;
-        }
-
-        button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-bt { background: #3498db; color: white; }
-        .btn-bt:active { background: #2980b9; transform: scale(0.98); }
+        .btn-connect { background: #3498db; }
+        .btn-start { background: #27ae60; }
+        .btn-stop { background: #e74c3c; }
+        .btn-export { background: #7f8c8d; }
+        .hidden { display: none !important; }
         
-        .btn-clear { background: #f1f2f6; color: #666; flex: 0.4; }
-        .btn-export { background: #27ae60; color: white; flex: 0.4; }
-
-        /* 动画提示 */
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        .recording .indicator { animation: pulse 1s infinite; background: #e74c3c; box-shadow: 0 0 5px #e74c3c; }
-        
-        /* 吐司提示 */
-        #toast {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 25px;
-            font-size: 14px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-            z-index: 2000;
-            text-align: center;
-        }
+        /* Toast 提示 */
+        .toast { position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 30px; font-size: 14px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 1000; text-align: center; width: 70%; }
     </style>
 </head>
 <body>
 
-    <div class="status-bar">
-        <div class="bt-status">
-            <div id="btIndicator" class="indicator"></div>
-            <span id="btStatusText">未连接</span>
+    <div class="header">
+        <div class="status-box">
+            <div id="statusDot" class="dot"></div>
+            <span id="statusText">未连接</span>
         </div>
-        <div class="realtime-val">
-            <span id="liveFlow">0.0</span> ml/s
-        </div>
+        <div class="live-value" id="liveFlow">0.0 ml/s</div>
     </div>
 
     <div class="container">
         <div class="card">
-            <div class="stats-grid">
+            <div class="grid">
                 <div class="stat-item">
                     <div class="stat-label">最大流速 (ml/s)</div>
-                    <div class="stat-val" id="maxFlow">0.00</div>
+                    <div class="stat-val" id="valMax">0.0</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">总尿量 (ml)</div>
-                    <div class="stat-val" id="totalVolume">0.0</div>
+                    <div class="stat-val" id="valVol">0</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">排尿时间 (s)</div>
-                    <div class="stat-val" id="voidTime">0</div>
+                    <div class="stat-val" id="valTime">0</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-label">平均流速 (ml/s)</div>
-                    <div class="stat-val" id="avgFlow">0.00</div>
+                    <div class="stat-val" id="valAvg">0.0</div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h3>尿流率曲线</h3>
-            <div class="chart-container">
-                <canvas id="flowChart"></canvas>
+            <div class="chart-header">
+                <span class="chart-title">流速曲线</span>
             </div>
+            <canvas id="flowChart"></canvas>
         </div>
 
         <div class="card">
-            <h3>累计尿量曲线</h3>
-            <div class="chart-container">
-                <canvas id="volumeChart"></canvas>
+            <div class="chart-header">
+                <span class="chart-title" style="border-color:#27ae60">累计尿量</span>
             </div>
+            <canvas id="volChart"></canvas>
         </div>
-
-        <details>
-            <summary>🛠 手动数据导入 / 调试</summary>
-            <textarea id="dataInput" placeholder="粘贴数据格式：流速,累计体积"></textarea>
-            <button onclick="parseManualData()" style="width:100%; margin-top:10px; background:#666; color:white; padding:8px;">解析文本数据</button>
-            <div style="margin-top:10px; font-size:12px; color:#888;">
-                * 蓝牙数据会自动追加到此处用于记录
-            </div>
-        </details>
+        
+        <div style="text-align:center; color:#999; font-size:12px; margin-top:10px;">
+            提示：点击“开始”后会自动归零并开始绘图
+        </div>
     </div>
 
-    <div class="bottom-actions">
-        <button class="btn-clear" onclick="clearData()">清空</button>
-        <button id="btnConnect" class="btn-bt" onclick="toggleBluetooth()">连接设备</button>
-        <button class="btn-export" onclick="exportData()">导出</button>
+    <div class="control-bar">
+        <button id="btnConnect" class="btn btn-connect" onclick="connectDevice()">连接设备</button>
+        <button id="btnStart" class="btn btn-start hidden" onclick="startRecording()">开始 / 归零</button>
+        <button id="btnStop" class="btn btn-stop hidden" onclick="stopRecording()">结束</button>
+        <button id="btnExport" class="btn btn-export hidden" onclick="exportData()">导出数据</button>
     </div>
 
-    <div id="toast"></div>
+    <div id="toast" class="toast">提示信息</div>
 
     <script>
-        // --- 核心变量 ---
-        let flowData = [];
-        let volumeData = [];
-        let timeLabels = [];
-        let bluetoothDevice;
-        let dataBuffer = ""; // 处理蓝牙分包数据
-        let wakeLock = null; // 屏幕常亮
+        // --- 系统变量 ---
+        let bluetoothDevice, gattCharacteristic;
+        let isConnected = false;
+        let isRecording = false;
         
-        // --- 蓝牙逻辑 ---
+        // 数据变量
+        let baseVolumeOffset = 0;   // 归零基准
+        let currentRawVolume = 0;   // 当前最新收到的原始体积
         
-        async function toggleBluetooth() {
-            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-                disconnectBluetooth();
-            } else {
-                connectBluetooth();
-            }
-        }
+        let dataFlow = [];          // 存储流速数据
+        let dataVol = [];           // 存储已归零的体积数据
+        let dataTime = [];          // 存储时间戳(秒)
+        let startTime = 0;          // 开始记录的时间点
+        
+        // 图表上下文
+        const ctxFlow = document.getElementById('flowChart').getContext('2d');
+        const ctxVol = document.getElementById('volChart').getContext('2d');
 
-        async function connectBluetooth() {
-            // 1. 检查是否支持蓝牙
-            if (!navigator.bluetooth) {
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                if (isIOS) {
-                    showToast("请使用 Bluefy 浏览器打开此页面");
-                } else {
-                    showToast("当前浏览器不支持蓝牙，请更换 Chrome/Edge");
-                }
-                return;
-            }
-
+        // --- 1. 连接设备 ---
+        async function connectDevice() {
             try {
-                updateStatus('connecting', '搜索中...');
-                
-                // 弹出调试信息，确认代码运行到了这里
-                console.log("开始请求设备...");
-
-                // === 修改开始：改为扫描所有设备 ===
+                // 搜索设备 (英文名)
                 const device = await navigator.bluetooth.requestDevice({
-                    // 1. 放弃 filters，改为接受所有设备 (解决中文筛选和参数报错问题)
-                    acceptAllDevices: true, 
-                    
-                    // 2. 这里的服务 UUID 必须全是字符串，去掉那个 0xFFE0 数字
-                    optionalServices: [
-                        '4fafc201-1fb5-459e-8fcc-c5c9c331914b'
-                    ]
+                    filters: [{ name: 'URINE-TEST' }],
+                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
                 });
-                // === 修改结束 ===
-
-                console.log("设备已选择:", device.name);
+                
                 bluetoothDevice = device;
                 device.addEventListener('gattserverdisconnected', onDisconnected);
-
-                // 3. 连接服务器
-                updateStatus('connecting', '连接中...');
-                const server = await device.gatt.connect();
-
-                // 4. 获取服务与特征值
-                let characteristic = null;
-                const services = await server.getPrimaryServices();
                 
-                for (const service of services) {
-                    const characteristics = await service.getCharacteristics();
-                    for (const char of characteristics) {
-                        if (char.properties.notify || char.properties.indicate) {
-                            characteristic = char;
-                            break;
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+                gattCharacteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+                
+                await gattCharacteristic.startNotifications();
+                gattCharacteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
+                
+                // 连接成功 UI 更新
+                isConnected = true;
+                updateStatus('connected');
+                showToast("连接成功！请按绿色按钮开始");
+                
+                // 按钮状态切换
+                document.getElementById('btnConnect').classList.add('hidden');
+                document.getElementById('btnStart').classList.remove('hidden');
+                
+            } catch (error) {
+                showToast("连接失败: " + error);
+            }
+        }
+
+        // --- 2. 处理蓝牙数据 ---
+        let buffer = "";
+        function handleBluetoothData(event) {
+            const value = new TextDecoder().decode(event.target.value);
+            buffer += value;
+            
+            if (buffer.includes('\n')) {
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); 
+                
+                lines.forEach(line => {
+                    const parts = line.trim().split(',');
+                    if (parts.length === 2) {
+                        const flow = parseFloat(parts[0]);
+                        const rawVol = parseFloat(parts[1]); // 这是 ESP32 发来的总累计值
+                        
+                        if (!isNaN(flow) && !isNaN(rawVol)) {
+                            // 始终更新该变量，用于随时等待“归零”命令
+                            currentRawVolume = rawVol;
+                            
+                            // 只有在录制状态下，才处理数据并画图
+                            if (isRecording) {
+                                processData(flow, rawVol);
+                            } else if (isConnected) {
+                                // 待机状态：仅显示当前流速，不画图
+                                document.getElementById('liveFlow').textContent = `[待机] ${flow.toFixed(1)} ml/s`;
+                            }
                         }
                     }
-                    if (characteristic) break;
-                }
-
-                if (!characteristic) {
-                    throw new Error("未找到可读数据通道");
-                }
-
-                // 5. 开启通知
-                await characteristic.startNotifications();
-                characteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
-                
-                updateStatus('connected', '正在接收');
-                requestWakeLock();
-                showToast("连接成功！");
-
-                document.getElementById('btnConnect').textContent = "断开连接";
-                document.getElementById('btnConnect').style.backgroundColor = "#e74c3c";
-
-            } catch (error) {
-                console.error(error);
-                updateStatus('disconnected', '未连接');
-                
-                // --- 关键修改：兼容 Bluefy 的错误显示 ---
-                let errorMsg = "未知错误";
-                if (typeof error === 'string') {
-                    errorMsg = error;
-                } else if (error.message) {
-                    errorMsg = error.message;
-                } else {
-                    errorMsg = JSON.stringify(error);
-                }
-                
-                // 如果是用户取消（User cancelled），不用弹窗报错，体验更好
-                if (errorMsg.includes("User cancelled") || errorMsg.includes("cancelled")) {
-                     showToast("已取消连接");
-                } else {
-                     alert("连接错误详情:\n" + errorMsg); // 用 alert 弹窗显示完整错误
-                }
-            }
-        }
-
-        function disconnectBluetooth() {
-            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-                bluetoothDevice.gatt.disconnect();
-            }
-        }
-
-        function onDisconnected() {
-            updateStatus('disconnected', '已断开');
-            document.getElementById('btnConnect').textContent = "连接设备";
-            document.getElementById('btnConnect').style.backgroundColor = "#3498db";
-            releaseWakeLock();
-            showToast("蓝牙已断开");
-        }
-
-        // 处理蓝牙接收到的原始数据
-        function handleBluetoothData(event) {
-            const value = event.target.value;
-            const decoder = new TextDecoder('utf-8');
-            const chunk = decoder.decode(value);
-            
-            dataBuffer += chunk;
-
-            // 按换行符分割数据包
-            if (dataBuffer.includes('\n')) {
-                const lines = dataBuffer.split('\n');
-                // 保留最后一个可能不完整的部分在 buffer 中
-                dataBuffer = lines.pop();
-
-                lines.forEach(line => {
-                    if (line.trim()) {
-                        processDataLine(line.trim());
-                        // 同时追加到手动输入框，方便查看原始数据
-                        const textarea = document.getElementById('dataInput');
-                        textarea.value += line + '\n';
-                        textarea.scrollTop = textarea.scrollHeight;
-                    }
-                });
-                
-                // 实时重绘
-                requestAnimationFrame(() => {
-                    updateStatistics();
-                    drawCharts();
                 });
             }
         }
 
-        // 解析单行数据 "flow,volume"
-        function processDataLine(lineStr) {
-            const parts = lineStr.split(',');
-            if (parts.length >= 2) {
-                const flow = parseFloat(parts[0]);
-                const volume = parseFloat(parts[1]);
-
-                if (!isNaN(flow) && !isNaN(volume)) {
-                    flowData.push(flow);
-                    volumeData.push(volume);
-                    timeLabels.push(flowData.length.toString());
-                    
-                    // 更新顶部实时显示
-                    document.getElementById('liveFlow').textContent = flow.toFixed(1);
-                }
+        // --- 3. 核心：数据记录与归零 ---
+        function processData(flow, rawVol) {
+            // 计算归零后的体积 = 当前原始值 - 点击开始时的基准值
+            let displayVol = rawVol - baseVolumeOffset;
+            if (displayVol < 0) displayVol = 0; // 防止微小负数
+            
+            // 时间计算
+            const now = Date.now();
+            const timeElapsed = (now - startTime) / 1000;
+            
+            // 存入数组
+            dataFlow.push(flow);
+            dataVol.push(displayVol);
+            dataTime.push(timeElapsed);
+            
+            // 更新 UI
+            document.getElementById('liveFlow').textContent = `${flow.toFixed(1)} ml/s`;
+            
+            // 性能优化：每 3 个点绘图一次
+            if (dataFlow.length % 3 === 0) {
+                updateStats(displayVol, timeElapsed);
+                drawCharts();
             }
         }
 
-        // --- 原有逻辑适配 ---
-
-        function updateStatistics() {
-            if (flowData.length === 0) return;
+        // --- 4. 按钮逻辑 ---
+        
+        function startRecording() {
+            if (!isConnected) return;
             
-            const maxFlow = Math.max(...flowData);
-            const avgFlow = flowData.reduce((a, b) => a + b, 0) / flowData.length;
-            const totalVolume = volumeData.length > 0 ? volumeData[volumeData.length - 1] : 0;
-            const voidTime = flowData.length; // 假设1Hz采样率，即1秒一个点
+            // === 关键：归零逻辑 ===
+            baseVolumeOffset = currentRawVolume; // 以当前这一刻的体积为 0 点
             
-            document.getElementById('maxFlow').textContent = maxFlow.toFixed(2);
-            document.getElementById('avgFlow').textContent = avgFlow.toFixed(2);
-            document.getElementById('totalVolume').textContent = totalVolume.toFixed(1);
-            document.getElementById('voidTime').textContent = voidTime;
+            // 清空旧数据
+            dataFlow = [];
+            dataVol = [];
+            dataTime = [];
+            startTime = Date.now();
+            
+            // 状态变更
+            isRecording = true;
+            updateStatus('recording');
+            
+            // 按钮切换
+            document.getElementById('btnStart').classList.add('hidden');
+            document.getElementById('btnStop').classList.remove('hidden');
+            document.getElementById('btnExport').classList.add('hidden');
+            
+            // 清空画布
+            updateStats(0, 0);
+            drawCharts(); // 画一个空图
+            
+            showToast("已归零，开始记录...");
         }
 
-        function clearData() {
-            flowData = [];
-            volumeData = [];
-            timeLabels = [];
-            dataBuffer = "";
-            document.getElementById('dataInput').value = "";
-            document.getElementById('liveFlow').textContent = "0.0";
+        function stopRecording() {
+            isRecording = false; // 停止接收新数据进入数组
+            updateStatus('connected'); // 变回黄灯
             
-            // 重置统计
-            document.getElementById('maxFlow').textContent = "0.00";
-            document.getElementById('avgFlow').textContent = "0.00";
-            document.getElementById('totalVolume').textContent = "0.0";
-            document.getElementById('voidTime').textContent = "0";
+            document.getElementById('btnStop').classList.add('hidden');
+            document.getElementById('btnStart').classList.remove('hidden');
+            document.getElementById('btnStart').textContent = "重新测试"; // 改文案
+            document.getElementById('btnExport').classList.remove('hidden'); // 显示导出
             
+            // 最终重绘一次，确保线条完整
             drawCharts();
-            showToast("数据已清空");
+            showToast("测试结束，数据已锁定");
         }
 
-        function parseManualData() {
-            const input = document.getElementById('dataInput').value.trim();
-            if (!input) return;
-            
-            // 清空现有数据以防重复
-            flowData = [];
-            volumeData = [];
-            timeLabels = [];
-            
-            const lines = input.split('\n');
-            lines.forEach(line => processDataLine(line.trim()));
-            updateStatistics();
-            drawCharts();
-            showToast(`已解析 ${flowData.length} 条数据`);
-        }
-
-        // --- 绘图逻辑 (Canvas) ---
-        function drawCharts() {
-            drawSingleChart('flowChart', flowData, '流速 (ml/s)', '#3498db', 'rgba(52, 152, 219, 0.2)');
-            drawSingleChart('volumeChart', volumeData, '尿量 (ml)', '#27ae60', 'rgba(39, 174, 96, 0.2)');
-        }
-
-        function drawSingleChart(canvasId, data, label, color, fillColor) {
-            const canvas = document.getElementById(canvasId);
-            const ctx = canvas.getContext('2d');
-            const parent = canvas.parentElement;
-            
-            // 自适应 Retina 屏幕和容器大小
-            const dpr = window.devicePixelRatio || 1;
-            const rect = parent.getBoundingClientRect();
-            
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            ctx.scale(dpr, dpr);
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
-
-            ctx.clearRect(0, 0, rect.width, rect.height);
-
-            if (data.length === 0) {
-                ctx.fillStyle = '#ccc';
-                ctx.textAlign = 'center';
-                ctx.fillText('等待数据...', rect.width/2, rect.height/2);
+        // --- 5. 导出功能 (增强版) ---
+        function exportData() {
+            if (dataFlow.length === 0) {
+                showToast("没有数据可导出");
                 return;
             }
+            
+            // 生成 CSV 内容
+            let csvContent = "Time(s),Flow(ml/s),Volume(ml)\n";
+            for (let i = 0; i < dataFlow.length; i++) {
+                csvContent += `${dataTime[i].toFixed(2)},${dataFlow[i].toFixed(2)},${dataVol[i].toFixed(1)}\n`;
+            }
+            
+            // 方案 A: 复制到剪贴板 (Bluefy 兼容性最好)
+            navigator.clipboard.writeText(csvContent).then(() => {
+                alert("CSV 数据已复制到剪贴板！\n\n你可以去微信/备忘录粘贴。\n同时也尝试启动下载...");
+            }).catch(() => {
+                alert("复制失败，尝试直接下载...");
+            });
+            
+            // 方案 B: 触发下载
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `urine_data_${Date.now()}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
 
-            // 绘图参数
-            const padding = 20;
-            const w = rect.width - padding * 2;
-            const h = rect.height - padding * 2;
-            const maxVal = Math.max(...data, 10); // 最小刻度10，防止平线
-            const minVal = 0;
-
-            // 绘制路径
+        // --- 6. 绘图与辅助函数 ---
+        
+        function updateStats(vol, time) {
+            const maxFlow = dataFlow.length > 0 ? Math.max(...dataFlow) : 0;
+            const avgFlow = time > 0 ? (vol / time) : 0;
+            
+            document.getElementById('valMax').textContent = maxFlow.toFixed(1);
+            document.getElementById('valVol').textContent = vol.toFixed(0);
+            document.getElementById('valTime').textContent = time.toFixed(0);
+            document.getElementById('valAvg').textContent = avgFlow.toFixed(1);
+        }
+        
+        function drawCharts() {
+            renderGraph(ctxFlow, dataFlow, '#3498db', true); // 蓝色流速
+            renderGraph(ctxVol, dataVol, '#27ae60', false);  // 绿色尿量
+        }
+        
+        function renderGraph(ctx, data, color, smooth) {
+            const width = ctx.canvas.width = ctx.canvas.offsetWidth * 2;
+            const height = ctx.canvas.height = ctx.canvas.offsetHeight * 2;
+            ctx.scale(2, 2);
+            const w = width / 2;
+            const h = height / 2;
+            
+            ctx.clearRect(0, 0, w, h);
+            if (data.length < 2) return;
+            
+            const max = Math.max(...data, 10); // 最小量程10，防止平线
+            const padding = 10;
+            
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
             ctx.lineJoin = 'round';
-
-            // 移动到第一个点
-            const getX = (i) => padding + (i / (Math.max(data.length - 1, 1))) * w;
-            const getY = (v) => padding + h - ((v - minVal) / (maxVal - minVal)) * h;
-
-            ctx.moveTo(getX(0), getY(data[0]));
-
-            for (let i = 1; i < data.length; i++) {
-                ctx.lineTo(getX(i), getY(data[i]));
+            
+            // 简单平滑算法 (3点平均)
+            const points = smooth ? data.map((v, i, a) => 
+                (i === 0 || i === a.length - 1) ? v : (a[i-1] + v + a[i+1]) / 3
+            ) : data;
+            
+            for (let i = 0; i < points.length; i++) {
+                const x = (i / (points.length - 1)) * w;
+                const y = h - (points[i] / max) * (h - padding * 2) - padding;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             }
             ctx.stroke();
-
-            // 填充区域
-            ctx.lineTo(getX(data.length - 1), padding + h);
-            ctx.lineTo(getX(0), padding + h);
-            ctx.fillStyle = fillColor;
-            ctx.fill();
-
-            // 绘制当前值的点
-            const lastX = getX(data.length - 1);
-            const lastY = getY(data[data.length - 1]);
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+            
+            // 填充背景
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.fillStyle = color + "15"; // 透明度背景
             ctx.fill();
         }
-
-        // --- 辅助功能 ---
-
-        function updateStatus(state, text) {
-            const indicator = document.getElementById('btIndicator');
-            const statusText = document.getElementById('btStatusText');
-            
-            indicator.className = 'indicator ' + state;
-            statusText.textContent = text;
+        
+        function updateStatus(state) {
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            dot.className = 'dot'; // reset
             
             if (state === 'connected') {
-                document.body.classList.add('recording');
+                dot.classList.add('connected');
+                txt.textContent = "已连接 (就绪)";
+            } else if (state === 'recording') {
+                dot.classList.add('recording');
+                txt.textContent = "● 正在录制";
             } else {
-                document.body.classList.remove('recording');
+                txt.textContent = "未连接";
             }
+        }
+        
+        function onDisconnected() {
+            isConnected = false;
+            isRecording = false;
+            updateStatus('disconnected');
+            document.getElementById('btnConnect').classList.remove('hidden');
+            document.getElementById('btnStart').classList.add('hidden');
+            document.getElementById('btnStop').classList.add('hidden');
+            document.getElementById('btnExport').classList.add('hidden');
+            showToast("设备已断开");
         }
 
         function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.style.opacity = 1;
-            setTimeout(() => toast.style.opacity = 0, 3000);
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.opacity = 1;
+            setTimeout(() => t.style.opacity = 0, 3000);
         }
-        
-        // 导出功能
-        function exportData() {
-            if (flowData.length === 0) {
-                showToast('无数据可导出');
-                return;
-            }
-            let csvContent = "时间(s),流速(ml/s),体积(ml)\n";
-            flowData.forEach((val, i) => {
-                csvContent += `${i+1},${val},${volumeData[i]}\n`;
-            });
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `尿流数据_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
-            link.click();
-        }
-
-        // 屏幕常亮控制 (Wake Lock API)
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) {
-                console.log(`${err.name}, ${err.message}`);
-            }
-        }
-        function releaseWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release();
-                wakeLock = null;
-            }
-        }
-
-        // 窗口调整重绘
-        window.addEventListener('resize', drawCharts);
-        // 初始化图表背景
-        drawCharts();
     </script>
 </body>
 </html>
-
